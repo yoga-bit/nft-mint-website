@@ -1,0 +1,941 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AgentsWeb3 — Mint NFT</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Bebas+Neue&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #080808;
+    --surface: #111111;
+    --border: #1f1f1f;
+    --accent: #00ff87;
+    --accent2: #00c9ff;
+    --text: #f0f0f0;
+    --muted: #555;
+    --danger: #ff4444;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Grid background */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: 
+      linear-gradient(rgba(0,255,135,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,255,135,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* Glow blobs */
+  .blob {
+    position: fixed;
+    border-radius: 50%;
+    filter: blur(120px);
+    opacity: 0.12;
+    pointer-events: none;
+    z-index: 0;
+  }
+  .blob-1 { width: 500px; height: 500px; background: var(--accent); top: -200px; left: -100px; }
+  .blob-2 { width: 400px; height: 400px; background: var(--accent2); bottom: -150px; right: -100px; }
+
+  /* Header */
+  header {
+    position: relative;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 24px 40px;
+    border-bottom: 1px solid var(--border);
+    backdrop-filter: blur(10px);
+  }
+
+  .logo {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 28px;
+    letter-spacing: 3px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .logo span {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 2px;
+    color: var(--muted);
+    display: block;
+    -webkit-text-fill-color: var(--muted);
+    margin-top: -4px;
+  }
+
+  .contract-badge {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 6px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .contract-badge:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  /* Main */
+  main {
+    position: relative;
+    z-index: 10;
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 60px 40px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 40px;
+    align-items: start;
+  }
+
+  /* Left panel - preview */
+  .preview-panel {
+    position: sticky;
+    top: 40px;
+  }
+
+  .preview-label {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 3px;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-bottom: 16px;
+  }
+
+  .preview-box {
+    aspect-ratio: 1;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    overflow: hidden;
+    position: relative;
+    cursor: pointer;
+    transition: border-color 0.3s;
+  }
+
+  .preview-box:hover { border-color: var(--accent); }
+
+  .preview-box.dragover {
+    border-color: var(--accent);
+    background: rgba(0,255,135,0.05);
+  }
+
+  .preview-placeholder {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    transition: opacity 0.3s;
+  }
+
+  .preview-placeholder.hidden { opacity: 0; pointer-events: none; }
+
+  .upload-icon {
+    width: 56px;
+    height: 56px;
+    border: 2px dashed var(--muted);
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    transition: all 0.3s;
+  }
+
+  .preview-box:hover .upload-icon {
+    border-color: var(--accent);
+  }
+
+  .preview-placeholder p {
+    font-size: 13px;
+    color: var(--muted);
+    text-align: center;
+  }
+
+  .preview-placeholder small {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    color: #333;
+  }
+
+  #preview-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: none;
+  }
+
+  #preview-img.visible { display: block; }
+
+  .preview-overlay {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: 20px;
+    background: linear-gradient(transparent, rgba(0,0,0,0.8));
+    display: none;
+  }
+
+  .preview-overlay.visible { display: block; }
+
+  .preview-name {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 22px;
+    letter-spacing: 1px;
+  }
+
+  .preview-desc {
+    font-size: 12px;
+    color: rgba(255,255,255,0.6);
+    margin-top: 4px;
+  }
+
+  /* NFT stats bar */
+  .stats-bar {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1px;
+    margin-top: 16px;
+    background: var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+  }
+
+  .stat {
+    background: var(--surface);
+    padding: 12px;
+    text-align: center;
+  }
+
+  .stat-val {
+    font-family: 'Space Mono', monospace;
+    font-size: 13px;
+    color: var(--accent);
+  }
+
+  .stat-label {
+    font-size: 10px;
+    color: var(--muted);
+    margin-top: 2px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+
+  /* Right panel - form */
+  .form-panel h1 {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 52px;
+    letter-spacing: 2px;
+    line-height: 1;
+    margin-bottom: 8px;
+  }
+
+  .form-panel h1 span {
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .subtitle {
+    font-size: 14px;
+    color: var(--muted);
+    margin-bottom: 40px;
+    line-height: 1.6;
+  }
+
+  .field {
+    margin-bottom: 20px;
+  }
+
+  .field label {
+    display: block;
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 2px;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+
+  .field input,
+  .field textarea {
+    width: 100%;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 14px 16px;
+    border-radius: 8px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    outline: none;
+    transition: border-color 0.2s;
+    resize: none;
+  }
+
+  .field input:focus,
+  .field textarea:focus {
+    border-color: var(--accent);
+  }
+
+  .field input::placeholder,
+  .field textarea::placeholder {
+    color: #333;
+  }
+
+  .field textarea { height: 80px; }
+
+  /* Attributes */
+  .attr-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-top: 8px;
+  }
+
+  .attr-item {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 12px;
+    display: flex;
+    gap: 8px;
+  }
+
+  .attr-item input {
+    background: transparent;
+    border: none;
+    color: var(--text);
+    font-size: 12px;
+    font-family: 'DM Sans', sans-serif;
+    outline: none;
+    width: 100%;
+    padding: 0;
+  }
+
+  .attr-item input::placeholder { color: #333; }
+
+  .attr-divider {
+    width: 1px;
+    background: var(--border);
+    flex-shrink: 0;
+  }
+
+  /* Wallet section */
+  .wallet-section {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 20px;
+  }
+
+  .wallet-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+  }
+
+  .wallet-title {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 2px;
+    color: var(--muted);
+    text-transform: uppercase;
+  }
+
+  .wallet-status {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+  }
+
+  .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--muted);
+  }
+
+  .dot.connected { background: var(--accent); box-shadow: 0 0 8px var(--accent); }
+
+  .wallet-address {
+    font-family: 'Space Mono', monospace;
+    font-size: 12px;
+    color: var(--text);
+    word-break: break-all;
+    line-height: 1.5;
+  }
+
+  .connect-btn {
+    width: 100%;
+    padding: 12px;
+    background: transparent;
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    border-radius: 8px;
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 2px;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-transform: uppercase;
+  }
+
+  .connect-btn:hover {
+    background: rgba(0,255,135,0.1);
+  }
+
+  /* Mint button */
+  .mint-btn {
+    width: 100%;
+    padding: 18px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    border: none;
+    color: #000;
+    border-radius: 10px;
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 22px;
+    letter-spacing: 3px;
+    cursor: pointer;
+    transition: all 0.3s;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .mint-btn::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, var(--accent2), var(--accent));
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+
+  .mint-btn:hover::before { opacity: 1; }
+  .mint-btn:hover { transform: translateY(-2px); box-shadow: 0 10px 40px rgba(0,255,135,0.3); }
+  .mint-btn:active { transform: translateY(0); }
+  .mint-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+  .mint-btn span { position: relative; z-index: 1; }
+
+  /* Gas estimate */
+  .gas-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 0;
+    border-top: 1px solid var(--border);
+    margin-top: 16px;
+  }
+
+  .gas-label {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+
+  .gas-value {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    color: var(--accent);
+  }
+
+  /* Status / Toast */
+  .toast {
+    position: fixed;
+    bottom: 40px;
+    left: 50%;
+    transform: translateX(-50%) translateY(100px);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px 24px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 13px;
+    z-index: 100;
+    transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+    min-width: 320px;
+    backdrop-filter: blur(20px);
+  }
+
+  .toast.show { transform: translateX(-50%) translateY(0); }
+  .toast.success { border-color: var(--accent); }
+  .toast.error { border-color: var(--danger); }
+
+  .toast-icon { font-size: 20px; }
+
+  .toast-content { flex: 1; }
+  .toast-title { font-weight: 500; margin-bottom: 2px; }
+  .toast-sub { font-size: 11px; color: var(--muted); font-family: 'Space Mono', monospace; }
+
+  /* Progress */
+  .progress-steps {
+    display: none;
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+
+  .progress-steps.visible { display: flex; }
+
+  .step {
+    flex: 1;
+    height: 3px;
+    background: var(--border);
+    border-radius: 2px;
+    overflow: hidden;
+    position: relative;
+  }
+
+  .step::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform 0.5s ease;
+  }
+
+  .step.active::after { transform: scaleX(1); }
+
+  /* Input file hidden */
+  #file-input { display: none; }
+
+  /* Divider */
+  .divider {
+    height: 1px;
+    background: var(--border);
+    margin: 24px 0;
+  }
+
+  .section-label {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 2px;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-bottom: 12px;
+  }
+
+  @media (max-width: 768px) {
+    main { grid-template-columns: 1fr; padding: 30px 20px; }
+    header { padding: 16px 20px; }
+    .form-panel h1 { font-size: 40px; }
+    .preview-panel { position: static; }
+  }
+
+  /* Scanning animation on mint */
+  @keyframes scan {
+    0% { transform: translateY(-100%); }
+    100% { transform: translateY(400%); }
+  }
+
+  .scanner {
+    position: absolute;
+    left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--accent), transparent);
+    display: none;
+    animation: scan 1.5s linear infinite;
+  }
+
+  .preview-box.scanning .scanner { display: block; }
+
+  @keyframes pulse-border {
+    0%, 100% { border-color: var(--border); }
+    50% { border-color: var(--accent); }
+  }
+
+  .preview-box.scanning { animation: pulse-border 1s ease infinite; }
+</style>
+</head>
+<body>
+
+<div class="blob blob-1"></div>
+<div class="blob blob-2"></div>
+
+<header>
+  <div class="logo">
+    AgentsWeb3
+    <span>NFT MINTING PLATFORM</span>
+  </div>
+  <div class="contract-badge" onclick="copyContract()">
+    CONTRACT: 0x8876...a830 ↗
+  </div>
+</header>
+
+<main>
+  <!-- Left: Preview -->
+  <div class="preview-panel">
+    <div class="preview-label">// NFT Preview</div>
+    <div class="preview-box" id="preview-box" onclick="document.getElementById('file-input').click()">
+      <div class="scanner"></div>
+      <img id="preview-img" alt="NFT Preview">
+      <div class="preview-placeholder" id="placeholder">
+        <div class="upload-icon">⬆</div>
+        <p>Drop image here<br>or click to upload</p>
+        <small>PNG · JPG · GIF · SVG · MP4</small>
+      </div>
+      <div class="preview-overlay" id="preview-overlay">
+        <div class="preview-name" id="overlay-name">Untitled NFT</div>
+        <div class="preview-desc" id="overlay-desc">No description</div>
+      </div>
+    </div>
+    <input type="file" id="file-input" accept="image/*,video/*,image/gif,image/svg+xml">
+
+    <div class="stats-bar">
+      <div class="stat">
+        <div class="stat-val" id="stat-network">ETH</div>
+        <div class="stat-label">Network</div>
+      </div>
+      <div class="stat">
+        <div class="stat-val">AW3</div>
+        <div class="stat-label">Symbol</div>
+      </div>
+      <div class="stat">
+        <div class="stat-val" id="stat-supply">—</div>
+        <div class="stat-label">Token ID</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right: Form -->
+  <div class="form-panel">
+    <h1>MINT YOUR<br><span>NFT.</span></h1>
+    <p class="subtitle">Upload your artwork, fill in the details,<br>and mint directly to Ethereum Mainnet.</p>
+
+    <!-- Progress -->
+    <div class="progress-steps" id="progress">
+      <div class="step" id="step-1"></div>
+      <div class="step" id="step-2"></div>
+      <div class="step" id="step-3"></div>
+    </div>
+
+    <!-- Wallet -->
+    <div class="wallet-section">
+      <div class="wallet-header">
+        <span class="wallet-title">Wallet</span>
+        <div class="wallet-status">
+          <div class="dot" id="wallet-dot"></div>
+          <span id="wallet-status-text">Not connected</span>
+        </div>
+      </div>
+      <div id="wallet-address" class="wallet-address" style="display:none"></div>
+      <button class="connect-btn" id="connect-btn" onclick="connectWallet()">Connect Wallet</button>
+    </div>
+
+    <!-- NFT Details -->
+    <div class="section-label">// NFT Details</div>
+
+    <div class="field">
+      <label>Name *</label>
+      <input type="text" id="nft-name" placeholder="e.g. Genesis #001" oninput="updatePreview()">
+    </div>
+
+    <div class="field">
+      <label>Description</label>
+      <textarea id="nft-desc" placeholder="Describe your NFT..." oninput="updatePreview()"></textarea>
+    </div>
+
+    <div class="divider"></div>
+    <div class="section-label">// Attributes (Optional)</div>
+
+    <div class="attr-grid">
+      <div class="attr-item">
+        <input type="text" placeholder="Type" id="attr-type-1">
+        <div class="attr-divider"></div>
+        <input type="text" placeholder="Value" id="attr-val-1">
+      </div>
+      <div class="attr-item">
+        <input type="text" placeholder="Type" id="attr-type-2">
+        <div class="attr-divider"></div>
+        <input type="text" placeholder="Value" id="attr-val-2">
+      </div>
+      <div class="attr-item">
+        <input type="text" placeholder="Type" id="attr-type-3">
+        <div class="attr-divider"></div>
+        <input type="text" placeholder="Value" id="attr-val-3">
+      </div>
+      <div class="attr-item">
+        <input type="text" placeholder="Type" id="attr-type-4">
+        <div class="attr-divider"></div>
+        <input type="text" placeholder="Value" id="attr-val-4">
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <!-- Pinata JWT -->
+    <div class="field">
+      <label>Pinata JWT *</label>
+      <input type="password" id="pinata-jwt" placeholder="eyJhbGci...">
+    </div>
+
+    <!-- Gas -->
+    <div class="gas-row">
+      <span class="gas-label">Est. Gas Fee</span>
+      <span class="gas-value" id="gas-fee">~0.002 ETH</span>
+    </div>
+
+    <!-- Mint Button -->
+    <button class="mint-btn" id="mint-btn" onclick="mintNFT()">
+      <span id="mint-btn-text">MINT NFT</span>
+    </button>
+  </div>
+</main>
+
+<!-- Toast -->
+<div class="toast" id="toast">
+  <div class="toast-icon" id="toast-icon">✓</div>
+  <div class="toast-content">
+    <div class="toast-title" id="toast-title"></div>
+    <div class="toast-sub" id="toast-sub"></div>
+  </div>
+</div>
+
+<script>
+  const CONTRACT_ADDRESS = '0x8876b33e2FD922C71e8CdAE3A45DA9F6502bA830';
+  let walletConnected = false;
+  let walletAddress = '';
+  let selectedFile = null;
+
+  // ABI minimal ERC-721 safeMint
+  const ABI = [
+    {
+      "inputs": [
+        {"internalType": "address", "name": "to", "type": "address"},
+        {"internalType": "string", "name": "uri", "type": "string"}
+      ],
+      "name": "safeMint",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    }
+  ];
+
+  // File input
+  document.getElementById('file-input').addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    selectedFile = file;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const img = document.getElementById('preview-img');
+      img.src = ev.target.result;
+      img.classList.add('visible');
+      document.getElementById('placeholder').classList.add('hidden');
+      document.getElementById('preview-overlay').classList.add('visible');
+    };
+    reader.readAsDataURL(file);
+  });
+
+  // Drag & drop
+  const previewBox = document.getElementById('preview-box');
+  previewBox.addEventListener('dragover', (e) => { e.preventDefault(); previewBox.classList.add('dragover'); });
+  previewBox.addEventListener('dragleave', () => previewBox.classList.remove('dragover'));
+  previewBox.addEventListener('drop', (e) => {
+    e.preventDefault();
+    previewBox.classList.remove('dragover');
+    const file = e.dataTransfer.files[0];
+    if (file) {
+      selectedFile = file;
+      document.getElementById('file-input').files = e.dataTransfer.files;
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        document.getElementById('preview-img').src = ev.target.result;
+        document.getElementById('preview-img').classList.add('visible');
+        document.getElementById('placeholder').classList.add('hidden');
+        document.getElementById('preview-overlay').classList.add('visible');
+      };
+      reader.readAsDataURL(file);
+    }
+  });
+
+  function updatePreview() {
+    const name = document.getElementById('nft-name').value || 'Untitled NFT';
+    const desc = document.getElementById('nft-desc').value || 'No description';
+    document.getElementById('overlay-name').textContent = name;
+    document.getElementById('overlay-desc').textContent = desc;
+  }
+
+  async function connectWallet() {
+    if (typeof window.ethereum === 'undefined') {
+      showToast('error', '🦊 MetaMask Required', 'Please install MetaMask to continue');
+      return;
+    }
+    try {
+      const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+      walletAddress = accounts[0];
+      walletConnected = true;
+      document.getElementById('wallet-dot').classList.add('connected');
+      document.getElementById('wallet-status-text').textContent = 'Connected';
+      document.getElementById('wallet-address').textContent = walletAddress;
+      document.getElementById('wallet-address').style.display = 'block';
+      document.getElementById('connect-btn').textContent = 'Connected ✓';
+      document.getElementById('connect-btn').style.borderColor = 'var(--accent)';
+      showToast('success', 'Wallet Connected', walletAddress.slice(0,6) + '...' + walletAddress.slice(-4));
+    } catch (e) {
+      showToast('error', 'Connection Failed', e.message);
+    }
+  }
+
+  async function uploadToPinata(file, jwt) {
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await fetch('https://api.pinata.cloud/pinning/pinFileToIPFS', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${jwt}` },
+      body: formData
+    });
+    if (!res.ok) throw new Error('Failed to upload image to Pinata');
+    const data = await res.json();
+    return `ipfs://${data.IpfsHash}`;
+  }
+
+  async function uploadMetadata(metadata, jwt) {
+    const res = await fetch('https://api.pinata.cloud/pinning/pinJSONToIPFS', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${jwt}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        pinataContent: metadata,
+        pinataMetadata: { name: metadata.name + ' - metadata' }
+      })
+    });
+    if (!res.ok) throw new Error('Failed to upload metadata to Pinata');
+    const data = await res.json();
+    return `ipfs://${data.IpfsHash}`;
+  }
+
+  function setStep(n) {
+    document.getElementById('progress').classList.add('visible');
+    for (let i = 1; i <= 3; i++) {
+      const el = document.getElementById(`step-${i}`);
+      if (i <= n) el.classList.add('active');
+      else el.classList.remove('active');
+    }
+  }
+
+  async function mintNFT() {
+    const name = document.getElementById('nft-name').value.trim();
+    const desc = document.getElementById('nft-desc').value.trim();
+    const jwt = document.getElementById('pinata-jwt').value.trim();
+
+    if (!selectedFile) return showToast('error', 'No Image', 'Please upload an image first');
+    if (!name) return showToast('error', 'Missing Name', 'Please enter a name for your NFT');
+    if (!jwt) return showToast('error', 'Missing JWT', 'Please enter your Pinata JWT token');
+    if (!walletConnected) return showToast('error', 'No Wallet', 'Please connect your wallet first');
+
+    const btn = document.getElementById('mint-btn');
+    const btnText = document.getElementById('mint-btn-text');
+    btn.disabled = true;
+    previewBox.classList.add('scanning');
+
+    try {
+      // Step 1: Upload image
+      btnText.textContent = 'UPLOADING IMAGE...';
+      setStep(1);
+      const imageUri = await uploadToPinata(selectedFile, jwt);
+      showToast('success', 'Image Uploaded', imageUri.slice(0, 40) + '...');
+
+      // Build attributes
+      const attributes = [];
+      for (let i = 1; i <= 4; i++) {
+        const type = document.getElementById(`attr-type-${i}`).value.trim();
+        const val = document.getElementById(`attr-val-${i}`).value.trim();
+        if (type && val) attributes.push({ trait_type: type, value: val });
+      }
+
+      // Step 2: Upload metadata
+      btnText.textContent = 'UPLOADING METADATA...';
+      setStep(2);
+      const metadata = { name, description: desc, image: imageUri, attributes };
+      const tokenURI = await uploadMetadata(metadata, jwt);
+
+      // Step 3: Mint on chain
+      btnText.textContent = 'MINTING ON CHAIN...';
+      setStep(3);
+
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const signer = await provider.getSigner();
+      const contract = new ethers.Contract(CONTRACT_ADDRESS, ABI, signer);
+      const tx = await contract.safeMint(walletAddress, tokenURI);
+      await tx.wait();
+
+      // Success!
+      previewBox.classList.remove('scanning');
+      btnText.textContent = 'MINT NFT';
+      btn.disabled = false;
+      document.getElementById('stat-supply').textContent = '#' + Math.floor(Math.random() * 999 + 1);
+      showToast('success', '🎉 NFT Minted!', tx.hash.slice(0, 10) + '...' + tx.hash.slice(-6));
+      setTimeout(() => {
+        window.open(`https://opensea.io/assets/ethereum/${CONTRACT_ADDRESS}`, '_blank');
+      }, 2000);
+
+    } catch (e) {
+      previewBox.classList.remove('scanning');
+      btnText.textContent = 'MINT NFT';
+      btn.disabled = false;
+      showToast('error', 'Mint Failed', e.message.slice(0, 60));
+    }
+  }
+
+  function showToast(type, title, sub) {
+    const toast = document.getElementById('toast');
+    document.getElementById('toast-title').textContent = title;
+    document.getElementById('toast-sub').textContent = sub;
+    document.getElementById('toast-icon').textContent = type === 'success' ? '✓' : '✕';
+    toast.className = `toast ${type}`;
+    toast.classList.add('show');
+    setTimeout(() => toast.classList.remove('show'), 4000);
+  }
+
+  function copyContract() {
+    navigator.clipboard.writeText(CONTRACT_ADDRESS);
+    showToast('success', 'Copied!', CONTRACT_ADDRESS);
+  }
+</script>
+
+<!-- ethers.js -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.7.0/ethers.umd.min.js"></script>
+</body>
+</html>
